@@ -158,6 +158,131 @@ app.post('/v1/dat/sports', async (c) => {
   }
 });
 
+// MAX Space storefront reads and ZK-voucher checkout.
+app.get('/api/v1/store/inventory', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(
+      `SELECT id, title, description, category, price_zk, stock_count, media_url, status
+       FROM store_inventory
+       WHERE status = 'AVAILABLE'
+       ORDER BY created_at DESC`
+    ).all();
+
+    return c.json({ items: results || [] });
+  } catch (error) {
+    console.error('Storefront inventory query failed:', error);
+    return c.json({ error: 'Failed to fetch storefront inventory' }, 500);
+  }
+});
+
+app.post('/api/v1/store/purchase', async (c) => {
+  try {
+    const body = await c.req.json<{
+      itemId?: string;
+      buyerNode?: string;
+      voucherHash?: string;
+    }>();
+
+    if (!body.itemId) {
+      return c.json({ error: 'Missing itemId' }, 400);
+    }
+
+    const item = await c.env.DB.prepare(
+      `SELECT id, title, price_zk, stock_count, status
+       FROM store_inventory
+       WHERE id = ?`
+    )
+      .bind(body.itemId)
+      .first<{
+        id: string;
+        title: string;
+        price_zk: number;
+        stock_count: number;
+        status: string;
+      }>();
+
+    if (!item || item.status !== 'AVAILABLE' || item.stock_count < 1) {
+      return c.json({ error: 'Item unavailable or out of stock' }, 409);
+    }
+
+    const now = Date.now();
+    const saleId = `sale_${crypto.randomUUID().slice(0, 12)}`;
+    const auditId = `evt_${crypto.randomUUID().slice(0, 12)}`;
+    const buyerNode = body.buyerNode?.trim() || 'node_guest_sovereign';
+    const voucherHash =
+      body.voucherHash?.trim() || `zkv_${crypto.randomUUID().replace(/-/g, '')}`;
+    const nextStock = item.stock_count - 1;
+    const nextStatus = nextStock === 0 ? 'SOLD_OUT' : 'AVAILABLE';
+
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO sales_ledger (id, item_id, buyer_node, amount_zk, voucher_hash, settlement_status, created_at)
+         VALUES (?, ?, ?, ?, ?, 'ESCROW_LOCKED', ?)`
+      ).bind(saleId, item.id, buyerNode, item.price_zk, voucherHash, now),
+
+      c.env.DB.prepare(
+        `UPDATE store_inventory
+         SET stock_count = ?, status = ?
+         WHERE id = ?`
+      ).bind(nextStock, nextStatus, item.id),
+
+      c.env.DB.prepare(
+        `INSERT INTO audit_events (id, event_type, actor_node, payload_json, created_at)
+         VALUES (?, 'ZK_VOUCHER_PURCHASE', ?, ?, ?)`
+      ).bind(
+        auditId,
+        buyerNode,
+        JSON.stringify({
+          saleId,
+          itemId: item.id,
+          amountZk: item.price_zk,
+          voucherHash,
+        }),
+        now
+      ),
+    ]);
+
+    return c.json({
+      ok: true,
+      saleId,
+      voucherHash,
+      itemId: item.id,
+      amountZk: item.price_zk,
+      remainingStock: nextStock,
+    });
+  } catch (error) {
+    console.error('Storefront purchase failed:', error);
+    return c.json({ error: 'Failed to process ZK-Voucher purchase' }, 500);
+  }
+});
+
+// Portal-OS admin routes require the ADMIN_PASSKEY secret.
+app.use('/api/v1/admin/*', async (c, next) => {
+  const expectedKey = (c.env as unknown as { ADMIN_PASSKEY?: string }).ADMIN_PASSKEY;
+  const providedKey = c.req.header('x-sovereign-passkey');
+
+  if (!expectedKey || providedKey !== expectedKey) {
+    return c.json({ error: 'Unauthorized Sovereign Access' }, 401);
+  }
+  await next();
+});
+
+app.get('/api/v1/admin/sales', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(
+      `SELECT s.id, s.item_id, i.title, s.buyer_node, s.amount_zk, s.voucher_hash, s.settlement_status, s.created_at
+       FROM sales_ledger s
+       LEFT JOIN store_inventory i ON s.item_id = i.id
+       ORDER BY s.created_at DESC`
+    ).all();
+
+    return c.json({ sales: results || [] });
+  } catch (error) {
+    console.error('Failed to read sales ledger:', error);
+    return c.json({ error: 'Failed to retrieve sales ledger' }, 500);
+  }
+});
+
 app.route('/', beemaxFinanceRouter);
 
 app.notFound((c) => {
