@@ -1,6 +1,6 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "planetary-max"
-main = "src/worker.ts"
+main = "server/planetary-max.ts"
 compatibility_date = "2026-03-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -20,8 +20,8 @@ id = "6ead4589e312473c94661e058533360f"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "planetary_max_root_db"
-database_id = "27f854d1-6c29-4a30-aaa5-345da09b02ff"
+database_name = "planetary-max-ledger"
+database_id = "26f79d62-306d-4258-970d-b218cddabe8f"
 migrations_dir = "migrations"
 
 [[durable_objects.bindings]]
