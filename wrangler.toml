@@ -16,7 +16,7 @@ ISOLATE_MEMORY_LIMIT_MB = "128"
 
 [[kv_namespaces]]
 binding = "SESSION_KV"
-id = "6ead4589e312473c94661e058533360f"
+id = "eccf7361ba5d474293001409bc085b07"
 
 [[d1_databases]]
 binding = "DB"
