@@ -8,6 +8,7 @@
     "build": "vite build",
     "db:migrate": "wrangler d1 migrations apply max-ecosystem-db --remote",
     "deploy": "npm run build && wrangler deploy",
+    "deploy:max": "wrangler d1 migrations apply DB --remote && npm run build && wrangler deploy",
     "test": "vitest run"
   },
   "dependencies": {
