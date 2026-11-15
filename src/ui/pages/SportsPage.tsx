@@ -1,20 +1,33 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { SportsTelemetryForm } from '../components/SportsTelemetryForm';
 
-const leagues = ['NFL', 'NBA', 'MLB', 'SOCCER', 'MMA'];
+const leagues = ['NFL', 'NBA', 'MLB', 'SOCCER', 'MMA'] as const;
+type League = (typeof leagues)[number];
+
 interface TelemetryItem {
   event_id: string;
-  league: string;
+  league: League;
   matchup: string;
-  oracle_consensus: { predictedWinner?: string; confidenceScore?: number; dataSourcesCount?: number };
+  oracle_consensus: {
+    predictedWinner?: string;
+    confidenceScore?: number;
+    dataSourcesCount?: number;
+  };
   updated_at: string;
 }
 
+const panelStyle: React.CSSProperties = {
+  background: 'linear-gradient(145deg, rgba(20,20,28,.96), rgba(11,11,15,.96))',
+  border: '1px solid rgba(255,255,255,.09)',
+  borderRadius: '14px',
+};
+
 export default function SportsPage() {
-  const [activeLeague, setActiveLeague] = useState('NFL');
+  const [activeLeague, setActiveLeague] = useState<League>('NFL');
   const [telemetry, setTelemetry] = useState<TelemetryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [watchlist, setWatchlist] = useState<string[]>([]);
 
   const loadTelemetry = useCallback(async () => {
     setLoading(true);
@@ -32,34 +45,90 @@ export default function SportsPage() {
   }, []);
 
   useEffect(() => { void loadTelemetry(); }, [loadTelemetry]);
-  const leagueTelemetry = useMemo(() => telemetry.filter((item) => item.league === activeLeague), [telemetry, activeLeague]);
+
+  const leagueTelemetry = useMemo(
+    () => telemetry.filter((item) => item.league === activeLeague),
+    [telemetry, activeLeague],
+  );
+
+  const toggleWatchlist = (eventId: string) => {
+    setWatchlist((current) => current.includes(eventId)
+      ? current.filter((id) => id !== eventId)
+      : [...current, eventId]);
+  };
 
   return (
-    <div style={{ padding: '2rem', background: '#0a0a0c', color: '#f0f0f5', minHeight: '100%', fontFamily: 'sans-serif' }}>
-      <header style={{ borderBottom: '1px solid #222', paddingBottom: '1rem', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div><h1 style={{ fontSize: '1.8rem', fontWeight: 300, letterSpacing: '2px' }}>MAX SPORTS</h1><p style={{ color: '#888', fontSize: '0.9rem' }}>Sports telemetry records</p></div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }} aria-label="Select league">
-          {leagues.map((league) => <button key={league} type="button" aria-pressed={activeLeague === league} onClick={() => setActiveLeague(league)} style={{ background: activeLeague === league ? '#3b82f6' : '#1a1a22', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>{league}</button>)}
+    <main style={{ minHeight: '100%', padding: 'clamp(1rem, 4vw, 2.5rem)', background: '#070709', color: '#f4f4f5', fontFamily: 'sans-serif' }}>
+      <header style={{ ...panelStyle, padding: '1.5rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <p style={{ margin: 0, color: '#a5b4fc', font: '11px ui-monospace, monospace', letterSpacing: '.16em' }}>MAX-SPORTS // PREDICTIVE INTELLIGENCE</p>
+          <h1 style={{ margin: '.5rem 0', fontSize: 'clamp(1.4rem, 3vw, 2rem)', fontWeight: 600 }}>Telemetry &amp; Bettor HUD</h1>
+          <p style={{ margin: 0, color: '#a1a1aa', fontSize: '.85rem' }}>Review recorded predictions and follow matchups in your local watchlist.</p>
         </div>
+        <button type="button" onClick={() => { void loadTelemetry(); }} disabled={loading} style={{ padding: '.65rem 1rem', borderRadius: '8px', border: '1px solid rgba(129,140,248,.4)', background: 'rgba(79,70,229,.18)', color: '#c7d2fe', cursor: loading ? 'wait' : 'pointer' }}>
+          {loading ? 'SYNCING…' : 'REFRESH TELEMETRY'}
+        </button>
       </header>
-      <SportsTelemetryForm onSuccess={() => { void loadTelemetry(); }} />
-      {loading ? <p role="status">Loading sports telemetry…</p> : error ? <p role="alert">{error}</p> : leagueTelemetry.length === 0 ? (
-        <section style={{ background: '#121216', border: '1px solid #222', padding: '2rem', borderRadius: '8px', color: '#aaa' }}>
-          No {activeLeague} telemetry records are available. These are stored user-entered records, not a live sports data feed.
+
+      <section aria-label="Select league" style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+        {leagues.map((league) => (
+          <button key={league} type="button" aria-pressed={activeLeague === league} onClick={() => setActiveLeague(league)} style={{ padding: '.55rem .9rem', borderRadius: '7px', border: `1px solid ${activeLeague === league ? '#6366f1' : 'rgba(255,255,255,.1)'}`, background: activeLeague === league ? 'rgba(79,70,229,.28)' : '#111116', color: activeLeague === league ? '#c7d2fe' : '#a1a1aa', cursor: 'pointer', font: '11px ui-monospace, monospace' }}>
+            {league}
+          </button>
+        ))}
+      </section>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '1.25rem', alignItems: 'start' }}>
+        <section aria-labelledby="matchups-heading">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '.75rem' }}>
+            <h2 id="matchups-heading" style={{ fontSize: '1rem', margin: 0 }}>Recorded matchups</h2>
+            <span style={{ color: '#71717a', font: '11px ui-monospace, monospace' }}>{leagueTelemetry.length} RECORDS</span>
+          </div>
+          {loading ? <p role="status" style={{ color: '#a1a1aa', padding: '2rem 0' }}>Loading sports telemetry…</p> : error ? (
+            <div role="alert" style={{ ...panelStyle, padding: '1.25rem', color: '#fca5a5' }}>
+              <p>{error}</p>
+              <button type="button" onClick={() => { void loadTelemetry(); }} style={{ color: '#c7d2fe', background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>Try again</button>
+            </div>
+          ) : leagueTelemetry.length === 0 ? (
+            <div style={{ ...panelStyle, padding: '1.5rem', color: '#a1a1aa', lineHeight: 1.6 }}>
+              No {activeLeague} telemetry records are available. Create a record below to see it here. This view does not use a live sports feed.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '.85rem' }}>
+              {leagueTelemetry.map((item) => {
+                const tracked = watchlist.includes(item.event_id);
+                return (
+                  <article key={item.event_id} style={{ ...panelStyle, padding: '1.15rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.75rem', color: '#a5b4fc', font: '10px ui-monospace, monospace', letterSpacing: '.08em' }}>
+                      <span>{item.league} · USER-RECORDED PREDICTION</span>
+                      <time>{item.updated_at}</time>
+                    </div>
+                    <h3 style={{ margin: '.85rem 0', fontSize: '1.05rem' }}>{item.matchup}</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.5rem', padding: '.8rem', borderRadius: '8px', background: 'rgba(0,0,0,.3)' }}>
+                      <div><small style={{ display: 'block', color: '#71717a' }}>PREDICTION</small><strong style={{ color: '#a5f3fc', fontSize: '.85rem' }}>{item.oracle_consensus?.predictedWinner ?? 'Not provided'}</strong></div>
+                      <div><small style={{ display: 'block', color: '#71717a' }}>CONFIDENCE</small><strong>{item.oracle_consensus?.confidenceScore ?? '—'}{item.oracle_consensus?.confidenceScore == null ? '' : '%'}</strong></div>
+                      <div><small style={{ display: 'block', color: '#71717a' }}>SOURCES</small><strong>{item.oracle_consensus?.dataSourcesCount ?? '—'}</strong></div>
+                    </div>
+                    <button type="button" aria-pressed={tracked} onClick={() => toggleWatchlist(item.event_id)} style={{ marginTop: '.85rem', padding: '.5rem .75rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,.12)', background: tracked ? 'rgba(16,185,129,.12)' : 'rgba(255,255,255,.04)', color: tracked ? '#6ee7b7' : '#d4d4d8', cursor: 'pointer', fontSize: '.75rem' }}>
+                      {tracked ? '✓ In watchlist' : 'Add to watchlist'}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-          {leagueTelemetry.map((item) => (
-            <article key={item.event_id} style={{ background: '#121216', border: '1px solid #333', padding: '1.25rem', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#aaa', fontSize: '0.8rem' }}><span>{item.league}</span><span>{item.updated_at}</span></div>
-              <h2 style={{ margin: '1rem 0' }}>{item.matchup}</h2>
-              <p>Predicted winner: {item.oracle_consensus?.predictedWinner ?? 'Not provided'}</p>
-              <p>Confidence: {item.oracle_consensus?.confidenceScore ?? '—'}%</p>
-              <p>Data sources: {item.oracle_consensus?.dataSourcesCount ?? '—'}</p>
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
+
+        <aside style={{ ...panelStyle, padding: '1.25rem' }} aria-label="Bettor HUD">
+          <h2 style={{ marginTop: 0, fontSize: '1rem' }}>Bettor HUD</h2>
+          <p style={{ color: '#a1a1aa', fontSize: '.82rem', lineHeight: 1.6 }}>Your watchlist is stored for this page session only. Predictions are user-entered records, not verified odds, live telemetry, or financial advice.</p>
+          <div style={{ padding: '1rem', borderRadius: '9px', background: 'rgba(0,0,0,.3)', border: '1px solid rgba(255,255,255,.06)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#a1a1aa', fontSize: '.8rem' }}><span>Tracked matchups</span><strong style={{ color: '#c7d2fe' }}>{watchlist.length}</strong></div>
+            <p style={{ margin: '.75rem 0 0', color: '#71717a', fontSize: '.75rem' }}>Wager placement, odds, deposits, and payouts are not connected.</p>
+          </div>
+          <SportsTelemetryForm onSuccess={() => { void loadTelemetry(); }} />
+        </aside>
+      </div>
+    </main>
   );
 }
