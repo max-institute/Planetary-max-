@@ -2,7 +2,7 @@ import app from './planetary-max';
 
 // The base Worker registers the shared admin passkey middleware before this
 // module adds its routes, so the inbox and publish endpoint remain protected.
-app.post('/api/v1/submissions', async (c) => {
+const createSubmission = async (c: Parameters<typeof app.post>[1] extends (path: string, handler: infer H) => unknown ? H : never) => {
   let body: {
     domain?: string;
     creator_handle?: string;
@@ -65,7 +65,11 @@ app.post('/api/v1/submissions', async (c) => {
     console.error('Submission intake failed:', error);
     return c.json({ error: 'Failed to process submission intake' }, 500);
   }
-});
+};
+
+// Keep the original versioned route and expose the requested unversioned path.
+app.post('/api/v1/submissions', createSubmission);
+app.post('/api/submissions', createSubmission);
 
 app.get('/api/v1/admin/submissions', async (c) => {
   try {
