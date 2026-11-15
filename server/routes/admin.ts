@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import type { Bindings } from '../types';
 
 const adminRouter = new Hono<{ Bindings: Bindings }>();
 
-async function getSales(c: Parameters<typeof adminRouter.get>[1] extends (handler: infer H) => unknown ? H : never) {
+async function getSales(c: Context<{ Bindings: Bindings }, '/sales'>) {
   try {
     const { results } = await c.env.DB.prepare(
       `SELECT s.id, s.item_id, i.title, s.buyer_node, s.amount_zk,

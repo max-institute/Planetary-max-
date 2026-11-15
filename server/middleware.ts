@@ -15,6 +15,12 @@ function decodeBase64Url(value: string): Uint8Array | null {
   }
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 function toHex(bytes: ArrayBuffer): string {
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
@@ -81,8 +87,10 @@ export async function verifyNodeSignature(c: Context<{ Bindings: Bindings }>, ne
     const bodyHash = toHex(await crypto.subtle.digest('SHA-256', body));
     const requestUrl = new URL(c.req.url);
     const signedMessage = `${timestampHeader}\n${nonce}\n${c.req.method.toUpperCase()}\n${requestUrl.pathname}${requestUrl.search}\n${bodyHash}`;
-    const publicKey = await crypto.subtle.importKey('raw', publicKeyBytes, { name: 'Ed25519' }, false, ['verify']);
-    const valid = await crypto.subtle.verify('Ed25519', publicKey, signatureBytes, new TextEncoder().encode(signedMessage));
+    const publicKey = await crypto.subtle.importKey('raw', toArrayBuffer(publicKeyBytes), { name: 'Ed25519' }, false, ['verify']);
+    const valid = await crypto.subtle.verify(
+      'Ed25519', publicKey, toArrayBuffer(signatureBytes), toArrayBuffer(new TextEncoder().encode(signedMessage)),
+    );
     if (!valid) return c.json({ success: false, error: 'Unauthorized: node signature verification failed.' }, 401);
   } catch (error) {
     console.error('Unable to verify Ed25519 node signature:', error);
