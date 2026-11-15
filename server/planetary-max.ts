@@ -7,6 +7,17 @@ import beemaxFinanceRouter from './beemax-finance';
 const app = new Hono<{ Bindings: Bindings }>();
 const leagues = ['NFL', 'NBA', 'MLB', 'SOCCER', 'MMA'] as const;
 
+// --- WORKER LIVE HEALTH CHECK ---
+app.get('/api/v1/health', (c) => {
+  return c.json({
+    ok: true,
+    status: 'online',
+    runtime: 'cloudflare-workers',
+    timestamp: Date.now(),
+    protocol: 'DAT-JURREAUISM-v1'
+  });
+});
+
 const ArtworkSchema = z.object({
   creator: z.string().trim().min(1).max(100),
   title: z.string().trim().min(1).max(200),
