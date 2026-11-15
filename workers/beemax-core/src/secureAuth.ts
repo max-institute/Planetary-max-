@@ -53,6 +53,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
+}
+
 /** Verifies an HS256 session and requires an active KV session record. */
 export async function verifyRealUserSession(request: Request, env: AuthEnv): Promise<SessionVerificationResult> {
   try {
@@ -85,42 +91,49 @@ export async function verifyRealUserSession(request: Request, env: AuthEnv): Pro
 
     const jwtPayload = payload as JwtPayload;
     if (jwtPayload.iss !== env.JWT_ISSUER || jwtPayload.aud !== env.JWT_AUDIENCE) return { authorized: false };
+
+    const userId = jwtPayload.sub;
+    const tokenId = jwtPayload.jti;
+    const issuedAt = jwtPayload.iat;
+    const expiresAt = jwtPayload.exp;
+    const notBefore = jwtPayload.nbf;
     if (
-      typeof jwtPayload.sub !== 'string' || !jwtPayload.sub.trim() || jwtPayload.sub.length > 128 ||
-      typeof jwtPayload.jti !== 'string' || jwtPayload.jti.length < 8 || jwtPayload.jti.length > 64 ||
-      (jwtPayload.role !== undefined && (typeof jwtPayload.role !== 'string' || !ALLOWED_ROLES.has(jwtPayload.role)))
+      typeof userId !== 'string' || !userId.trim() || userId.length > 128 ||
+      typeof tokenId !== 'string' || tokenId.length < 8 || tokenId.length > 64 ||
+      (jwtPayload.role !== undefined && (typeof jwtPayload.role !== 'string' || !ALLOWED_ROLES.has(jwtPayload.role))) ||
+      typeof issuedAt !== 'number' || !Number.isSafeInteger(issuedAt) ||
+      typeof expiresAt !== 'number' || !Number.isSafeInteger(expiresAt)
     ) return { authorized: false };
 
     const now = Math.floor(Date.now() / 1000);
     if (
-      !Number.isSafeInteger(jwtPayload.iat) || !Number.isSafeInteger(jwtPayload.exp) ||
-      jwtPayload.exp <= jwtPayload.iat || jwtPayload.exp - jwtPayload.iat > MAX_TOKEN_TTL_SECONDS ||
-      jwtPayload.iat > now + CLOCK_SKEW_SECONDS || now >= jwtPayload.exp
+      expiresAt <= issuedAt || expiresAt - issuedAt > MAX_TOKEN_TTL_SECONDS ||
+      issuedAt > now + CLOCK_SKEW_SECONDS || now >= expiresAt
     ) return { authorized: false };
-    if (jwtPayload.nbf !== undefined && (
-      !Number.isSafeInteger(jwtPayload.nbf) ||
-      jwtPayload.nbf > now + CLOCK_SKEW_SECONDS ||
-      jwtPayload.nbf >= jwtPayload.exp
+    if (notBefore !== undefined && (
+      typeof notBefore !== 'number' || !Number.isSafeInteger(notBefore) ||
+      notBefore > now + CLOCK_SKEW_SECONDS || notBefore >= expiresAt
     )) return { authorized: false };
 
     const key = await crypto.subtle.importKey(
       'raw',
-      new TextEncoder().encode(env.JWT_SECRET),
+      toArrayBuffer(new TextEncoder().encode(env.JWT_SECRET)),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['verify'],
     );
+    const signedContent = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`);
     const validSignature = await crypto.subtle.verify(
-      'HMAC', key, signature, new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`),
+      'HMAC', key, toArrayBuffer(signature), toArrayBuffer(signedContent),
     );
     if (!validSignature) return { authorized: false };
 
-    const sessionStatus = await env.SESSION_KV.get(`session:active:${jwtPayload.sub}:${jwtPayload.jti}`);
+    const sessionStatus = await env.SESSION_KV.get(`session:active:${userId}:${tokenId}`);
     if (sessionStatus !== 'active') return { authorized: false };
 
     return {
       authorized: true,
-      userId: jwtPayload.sub,
+      userId,
       role: typeof jwtPayload.role === 'string' ? jwtPayload.role : 'user',
     };
   } catch {
