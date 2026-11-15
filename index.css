@@ -1,33 +1,84 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --bg-obsidian: #070709;
+    --bg-surface: #0e0e12;
+    --bg-surface-glass: rgba(14, 14, 18, 0.75);
+
+    --border-titanium: rgba(255, 255, 255, 0.08);
+    --border-titanium-glow: rgba(99, 102, 241, 0.35);
+
+    --text-primary: #f4f4f6;
+    --text-secondary: #9ea1b0;
+    --text-accent: #818cf8;
+
+    --shadow-spatial: 0 24px 48px -12px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  }
+
   html,
   body,
-  #root {
-    height: 100%;
+  #app {
+    min-height: 100%;
     margin: 0;
     padding: 0;
-    background-color: #04070f;
-    color: #f8fafc;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    background-color: var(--bg-obsidian);
+    color: var(--text-primary);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, sans-serif;
+    letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
   }
+}
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
+/* Elite Glass & Titanium Utility Classes */
+.glass-panel {
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-titanium);
+  box-shadow: var(--shadow-spatial);
+}
 
-  ::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.5);
-  }
+.glass-panel-active {
+  background: rgba(18, 18, 24, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-titanium-glow);
+  box-shadow: 0 28px 56px -10px rgba(0, 0, 0, 0.9),
+    0 0 20px -4px rgba(99, 102, 241, 0.25),
+    0 0 0 1px rgba(99, 102, 241, 0.4) inset;
+}
 
-  ::-webkit-scrollbar-thumb {
-    background: rgba(34, 211, 238, 0.35);
-    border-radius: 9999px;
-  }
+.titanium-border {
+  border: 1px solid transparent;
+  border-image: linear-gradient(
+      to bottom right,
+      rgba(255, 255, 255, 0.15),
+      rgba(255, 255, 255, 0.02)
+    )
+    1;
+}
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(34, 211, 238, 0.65);
-  }
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
