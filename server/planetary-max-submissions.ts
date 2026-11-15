@@ -136,5 +136,16 @@ app.post('/api/v1/admin/submissions/:id/publish', async (c) => {
   }
 });
 
+// Serve the Vite SPA and other static files through the configured ASSETS
+// binding. Keep unknown API paths as JSON 404s instead of returning index.html.
+app.all('*', async (c) => {
+  const path = c.req.path;
+  if (path === '/api' || path.startsWith('/api/') || path === '/v1' || path.startsWith('/v1/')) {
+    return c.json({ error: 'Not found' }, 404);
+  }
+
+  return c.env.ASSETS.fetch(c.req.raw);
+});
+
 export { NodeRegistryDO, BEEMAXSecureNodeRegistryDO } from './planetary-max';
 export default app;
